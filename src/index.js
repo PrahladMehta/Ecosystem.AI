@@ -6,11 +6,8 @@ const i18n = require('i18next');
 const i18nextMiddleware = require('i18next-http-middleware');
 const {english,french}=require("./lib/i18n");
 
-
-
 // Middleware
 app.use(cors("*"));
-
 
 
 i18n.use(i18nextMiddleware.LanguageDetector);
@@ -40,8 +37,8 @@ app.get('/', (req, res) => {
 
 // Import and use routes
 const authRoutes = require('./routes/auth');
+const paymentRoutes = require('./routes/payments');
 
-app.use('/api/auth', authRoutes);
 
 
 // Error handling middleware
