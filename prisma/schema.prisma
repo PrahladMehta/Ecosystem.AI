@@ -8,74 +8,92 @@ datasource db {
 }
 
 model User {
-  id                                 Int                                  @id @default(autoincrement())
-  firstName                          String?                              @db.VarChar(50)
-  lastName                           String?                              @db.VarChar(50)
-  phoneNumber                        String?                              @db.VarChar(20)
-  image                              String?                              @db.VarChar(255)
-  email                              String                               @unique @db.VarChar(100)
-  password                           String?                              @db.VarChar(255)
-  city                               String?                              @db.VarChar(30)
-  company                            String?                              @db.VarChar(50)
-  country                            String?                              @db.VarChar(50)
-  role                               String?                              @db.VarChar(20)
-  subscriptionType                   String?                              @db.VarChar(20)
-  countryCode                        String?                              @db.VarChar(20)
-  paymentId                          String?                              @db.VarChar(100)
-  activeProfile                      Boolean?
-  isProfileComplete                  Boolean?
-  stripeCustomerId                   String?                              @db.VarChar(50)
-  subscriptionStatus                 String?                              @db.VarChar(50)
-  subscriptionId                     String?                              @db.VarChar(100)
-  refreshToken                       String?                              @db.VarChar(255)
-  isDeleted                          Boolean?
-  otp                                String?                              @db.VarChar(6)
-  subscriptionEndDate                DateTime?                            @db.Timestamp(6)
-  subscriptionStartDate              DateTime?                            @db.Timestamp(6)
-  subscriptionUpdatedAt              DateTime?                            @db.Timestamp(6)
-  language                           String?                              @db.VarChar
-  createdAt                          DateTime?                            @map("created_at") @db.Timestamp(6)
-  subscriptionDurationType           String?                              @db.VarChar
-  account_chat_history               account_chat_history[]
-  agent_phone_numbers                agent_phone_numbers[]
-  appointment_setter                 appointment_setter[]
-  content                            content[]
-  content_creation_chat_history      content_creation_chat_history[]
-  coo_chat_history                   coo_chat_history[]
-  customer_support_chat_history      customer_support_chat_history[]
-  email_campaign                     email_campaign[]
-  // google_calendar_connection_details google_calendar_connection_details[]
-  hr_chat_history                    hr_chat_history[]
-  instagram_connection_details       instagram_connection_details[]
-  invite_tokens                      teamInvite[]
-  knowledge_attachment               knowledge_attachment[]
-  knowledge_base                     knowledge_base[]
-  linkedin_connection_details        linkedin_connection_details[]
-  linkedin_post                      linkedin_post[]
-  phone_agent                        phone_agent[]
-  phone_campaign                     phone_campaign[]
-  phone_credits                      phone_credits[]
-  scheduled_content                  scheduled_content[]
-  seo_chat_history                   seo_chat_history[]
-  smart_customer_support_chatbot     smart_customer_support_chatbot[]
-  team                               team[]
-  teammembers                        teammembers[]
-  transaction_history                transactionHistory[]
-  whatsapp_connection_details        whatsapp_connection_details[]
-  x_post                             x_post[]
-  youtube_script                     youtube_script[]
+  id                    Int       @id @default(autoincrement())
+  firstName             String?   @db.VarChar(50)
+  lastName              String?   @db.VarChar(50)
+  email                 String    @unique @db.VarChar(100)
+  password              String?   @db.VarChar(255)
+  phoneNumber           String?   @db.VarChar(20)
+  countryCode           String?   @db.VarChar(10)
+  image                 String?   @db.VarChar(255)
+  
+  // Company & Location
+  company               String?   @db.VarChar(100)
+  city                  String?   @db.VarChar(50)
+  country               String?   @db.VarChar(50)
+  language              String?   @default("en") @db.VarChar(10)
+  
+  // Role & Status
+  role                  String    @default("User") @db.VarChar(20)
+  activeProfile         Boolean   @default(false)
+  isProfileComplete     Boolean   @default(false)
+  isDeleted             Boolean   @default(false)
+  
+  // Authentication
+  otp                   String?   @db.VarChar(6)
+  refreshToken          String?   @db.Text
+  
+  // Subscription
+  subscriptionType      String?   @db.VarChar(20)
+  subscriptionStatus    String?   @db.VarChar(50)
+  subscriptionId        String?   @db.VarChar(100)
+  subscriptionDurationType String? @db.VarChar(20)
+  subscriptionStartDate DateTime? @db.Timestamp(6)
+  subscriptionEndDate   DateTime? @db.Timestamp(6)
+  subscriptionUpdatedAt DateTime? @db.Timestamp(6)
+  
+  // Payment
+  stripeCustomerId      String?   @db.VarChar(100)
+  paymentId             String?   @db.VarChar(100)
+  
+  // Timestamps
+  createdAt             DateTime  @default(now()) @db.Timestamp(6)
+  updatedAt             DateTime  @updatedAt @db.Timestamp(6)
+  
+  // Relations
+  accountChatHistory              account_chat_history[]
+  agentPhoneNumbers               agent_phone_numbers[]
+  appointmentSetter               appointment_setter[]
+  content                         content[]
+  contentCreationChatHistory      content_creation_chat_history[]
+  cooChatHistory                  coo_chat_history[]
+  customerSupportChatHistory      customer_support_chat_history[]
+  emailCampaign                   email_campaign[]
+  hrChatHistory                   hr_chat_history[]
+  instagramConnectionDetails      instagram_connection_details[]
+  teamInvites                     teamInvite[]
+  knowledgeAttachment             knowledge_attachment[]
+  knowledgeBase                   knowledge_base[]
+  linkedinConnectionDetails       linkedin_connection_details[]
+  linkedinPost                    linkedin_post[]
+  phoneAgent                      phone_agent[]
+  phoneCampaign                   phone_campaign[]
+  phoneCredits                    phone_credits[]
+  scheduledContent                scheduled_content[]
+  seoChatHistory                  seo_chat_history[]
+  smartCustomerSupportChatbot     smart_customer_support_chatbot[]
+  teams                           team[]
+  teamMembers                     teammembers[]
+  transactionHistory              transactionHistory[]
+  whatsappConnectionDetails       whatsapp_connection_details[]
+  xPost                           x_post[]
+  youtubeScript                   youtube_script[]
 
-  @@index([id], map: "ix_users_id")
+  @@index([email])
+  @@index([isDeleted])
+  @@index([subscriptionStatus])
   @@map("users")
 }
 
 model PasswordResetToken {
-  id        Int       @id @default(autoincrement())
-  email     String    @db.VarChar(100)
-  token     String    @unique @db.VarChar(255)
-  expiresAt DateTime  @db.Timestamp(6)
-  createdAt DateTime? @map("created_at") @db.Timestamp(6)
+  id        Int      @id @default(autoincrement())
+  email     String   @db.VarChar(100)
+  token     String   @unique @db.VarChar(255)
+  expiresAt DateTime @db.Timestamp(6)
+  createdAt DateTime @default(now()) @db.Timestamp(6)
 
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
   @@map("password_reset_tokens")
 }
-

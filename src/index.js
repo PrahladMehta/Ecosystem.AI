@@ -37,7 +37,9 @@ app.get('/', (req, res) => {
 
 // Import and use routes
 const authRoutes = require('./routes/auth');
-const paymentRoutes = require('./routes/payments');
+const passwordRoutes = require('./routes/password');
+app.use('/api/auth', authRoutes);
+app.use('/api/password', passwordRoutes);
 
 
 

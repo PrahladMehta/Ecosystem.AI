@@ -1,69 +1,94 @@
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 const prisma = require("../lib/prisma");
 const { sendOTPEmail, sendResetPasswordEmail } = require("../services/emailService");
-const { v4: uuidv4 } = require('uuid');
-const bcrypt = require('bcryptjs');
 
+// Send OTP to user email
 const sentOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ success: false, message: "email is required" });
+      return res.status(400).json({
+        success: false,
+        message: req.t("emailRequired")
+      });
     }
 
-    const otp = Math.floor(Math.random() * 10000).toString();
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t("userNotFound")
+      });
+    }
+
+    // Generate 4-digit OTP
+    const otp = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
 
     await prisma.user.update({
       where: { email },
       data: { otp }
     });
     
-    const status = await sendOTPEmail(email, otp);
+    const emailSent = await sendOTPEmail(email, otp);
 
-    if (status) {
-      return res.status(200).json({
-        success: true,
-        message: req.t("otpSent")
+    if (!emailSent) {
+      console.error(`[OTP Error] Failed to send OTP to email: ${email}`);
+      return res.status(500).json({
+        success: false,
+        message: req.t("somethingWentWrong")
       });
     }
 
-    return res.status(400).json({
-      success: false,
-      message: req.t("somethingWentWrong")
+    return res.status(200).json({
+      success: true,
+      message: req.t("otpSent")
     });
 
   } catch (error) {
-    console.log(error.message);
+    console.error(`[Send OTP Error] Email: ${req.body.email}, Error: ${error.message}`);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: req.t("somethingWentWrong")
     });
   }
 };
 
+// Request password reset link
 const requestPasswordReset = async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ success: false, message: req.t("emailRequired") });
+      return res.status(400).json({
+        success: false,
+        message: req.t("emailRequired")
+      });
     }
 
-    // Check if user exists
-    const user = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: req.t("userNotFound")
+      });
+    }
+
+    // Generate unique reset token
+    const token = uuidv4();
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 1); // 1 hour expiry
+
+    // Delete any existing tokens for this email
+    await prisma.passwordResetToken.deleteMany({
       where: { email }
     });
 
-    if (!user) {
-      return res.status(404).json({ success: false, message:req.t("userNotFound") });
-    }
-
-    // Generate reset token
-    const token = uuidv4();
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 1); // Token expires in 1 hour
-
-    // Store reset token
+    // Create new reset token
     await prisma.passwordResetToken.create({
       data: {
         email,
@@ -72,50 +97,55 @@ const requestPasswordReset = async (req, res) => {
       }
     });
 
-    // Send reset email
-    const status = await sendResetPasswordEmail(email, token);
+    const emailSent = await sendResetPasswordEmail(email, token);
 
-    if (status) {
-      return res.status(200).json({
-        success: true,
-        message: req.t("passwordResetEmail")
+    if (!emailSent) {
+      console.error(`[Password Reset Error] Failed to send reset email to: ${email}`);
+      return res.status(500).json({
+        success: false,
+        message: req.t("failedToSent")
       });
     }
 
-    return res.status(400).json({
-      success: false,
-      message: req.t("failedToSent")
+    return res.status(200).json({
+      success: true,
+      message: req.t("passwordResetEmail")
     });
 
   } catch (error) {
-    console.error(error);
+    console.error(`[Request Password Reset Error] Email: ${req.body.email}, Error: ${error.message}`);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: req.t("somethingWentWrong")
     });
   }
 };
 
+// Reset password using token
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({ success: false, message: req.t("tokenAndPass") });
+      return res.status(400).json({
+        success: false,
+        message: req.t("tokenAndPass")
+      });
     }
 
-    // Find valid reset token
+    // Validate token
     const resetToken = await prisma.passwordResetToken.findFirst({
       where: {
         token,
-        expiresAt: {
-          gt: new Date() // Token not expired
-        }
+        expiresAt: { gt: new Date() }
       }
     });
 
     if (!resetToken) {
-      return res.status(400).json({ success: false, message: req.t("invalidAndExpire") });
+      return res.status(400).json({
+        success: false,
+        message: req.t("invalidAndExpire")
+      });
     }
 
     // Hash new password
@@ -128,9 +158,9 @@ const resetPassword = async (req, res) => {
       data: { password: hashedPassword }
     });
 
-    // Delete used token
+    // Remove all reset tokens for this user
     await prisma.passwordResetToken.deleteMany({
-      where: {email:resetToken.email }
+      where: { email: resetToken.email }
     });
 
     return res.status(200).json({
@@ -139,42 +169,41 @@ const resetPassword = async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
+    console.error(`[Reset Password Error] Token: ${req.body.token?.substring(0, 8)}..., Error: ${error.message}`);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: req.t("somethingWentWrong")
     });
   }
 };
 
+// Change password for authenticated user
 const setNewPassword = async (req, res) => {
   try {
     const { email, currentPassword, newPassword } = req.body;
 
     if (!email || !currentPassword || !newPassword) {
-      return res.status(400).json({ 
-        success: false, 
-        message:req.t("validateEmailPass")
+      return res.status(400).json({
+        success: false,
+        message: req.t("validateEmailPass")
       });
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email }
-    });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user) {
-      return res.status(404).json({ 
-        success: false, 
+      return res.status(404).json({
+        success: false,
         message: req.t("userNotFound")
       });
     }
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+
     if (!isPasswordValid) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: req.t("currPassIncorrect")
       });
     }
@@ -183,7 +212,6 @@ const setNewPassword = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update password
     await prisma.user.update({
       where: { email },
       data: { password: hashedPassword }
@@ -191,14 +219,14 @@ const setNewPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message:req.t("passwordUpdate")
+      message: req.t("passwordUpdate")
     });
 
   } catch (error) {
-    console.error(error);
+    console.error(`[Set New Password Error] Email: ${req.body.email}, Error: ${error.message}`);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: req.t("somethingWentWrong")
     });
   }
 };
